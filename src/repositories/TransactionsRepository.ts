@@ -1,3 +1,5 @@
+import { EntityRepository, Repository } from 'typeorm';
+
 import Transaction from '../models/Transaction';
 
 interface Balance {
@@ -5,57 +7,35 @@ interface Balance {
   outcome: number;
   total: number;
 }
-interface CreateTransactionDTO{
-  title: string;
-  value:number;
-  type: 'income' | 'outcome'
-}
-class TransactionsRepository {
-  private transactions: Transaction[];
 
-  constructor() {
-    this.transactions = [];
-  }
+@EntityRepository(Transaction)
+class TransactionsRepository extends Repository<Transaction> {
+  public async getBalance(): Promise<Balance> {
+    const transactions = await this.find();
 
-  public all(): Transaction[] {
-    return this.transactions;
-  }
-
-  public getBalance(): Balance {
-    const {income, outcome} = this.transactions.reduce((accumulator, transaction) =>{
-        switch (transaction.type){
-          case "income":
-            accumulator.income += transaction.value;
+    const { income, outcome, total } = transactions.reduce(
+      (accumulator, transaction) => {
+        switch (transaction.type) {
+          case 'income':
+            accumulator.income += Number(transaction.value);
+            accumulator.total += Number(transaction.value);
             break;
-          case "outcome":
-            accumulator.outcome += transaction.value;
+          case 'outcome':
+            accumulator.outcome += Number(transaction.value);
+            accumulator.total -= Number(transaction.value);
             break;
           default:
             break;
         }
-        return accumulator
-    },{
-      income: 0,
-      outcome: 0,
-    })
-    const balance ={
-      income,
-      outcome,
-      total:income - outcome
-    }
-    return balance;
-  }
-
-  public create({title, value, type}: CreateTransactionDTO): Transaction {
-    const transaction = new Transaction({
-      title,
-      value,
-      type
-    });
-
-    this.transactions.push(transaction);
-
-    return transaction;
+        return accumulator;
+      },
+      {
+        income: 0,
+        outcome: 0,
+        total: 0,
+      },
+    );
+    return { income, outcome, total };
   }
 }
 
